@@ -2,6 +2,44 @@
 
 A Model Context Protocol (MCP) server that provides AI agents with the ability to interact with the Lu.ma API for event and guest management.
 
+## Quick Start
+
+1. **Install the MCP server:**
+   ```bash
+   npm install -g luma-mcp-server
+   ```
+
+2. **Configure Claude Desktop:**
+   
+   **macOS:**
+   ```bash
+   open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+   ```
+   
+   **Windows:**
+   ```
+   notepad %APPDATA%\Claude\claude_desktop_config.json
+   ```
+
+3. **Add this configuration:**
+   ```json
+   {
+     "mcpServers": {
+       "luma": {
+         "command": "npx",
+         "args": ["luma-mcp-server"]
+       }
+     }
+   }
+   ```
+
+4. **Restart Claude Desktop**
+
+5. **Start using it!** Ask Claude:
+   - "Please add my Lu.ma calendar with API key [your-key]"
+   - "List my Lu.ma events"
+   - "Export all guests to CSV"
+
 ## Features
 
 This MCP server enables AI agents to:
@@ -22,6 +60,14 @@ This MCP server enables AI agents to:
 
 ## Installation
 
+### Method 1: Install from npm (Recommended)
+
+```bash
+npm install -g luma-mcp-server
+```
+
+### Method 2: Install from Source
+
 1. Clone this repository:
 ```bash
 git clone https://github.com/yourusername/luma-mcp-server.git
@@ -36,6 +82,11 @@ npm install
 3. Build the project:
 ```bash
 npm run build
+```
+
+4. (Optional) Link globally for easier access:
+```bash
+npm link
 ```
 
 ## Configuration
@@ -233,7 +284,7 @@ update_event(api_id="evt-12345", name="Updated Tech Meetup", start_at="2024-12-2
 ```
 
 #### 13. `export_guest_list`
-Export guest data to CSV format for one or more events.
+Export guest data to CSV file (saves to exports/ directory).
 
 **Parameters:**
 - `event_ids` (array of strings, optional): Specific event IDs to export (if not provided, exports all events)
@@ -248,6 +299,13 @@ Export guest data to CSV format for one or more events.
 - All custom registration questions and answers
 - QR codes for check-in
 
+**File Location:**
+Exported files are saved to the `exports/` directory within the MCP server installation:
+- macOS (npm): `~/.npm/_npx/[cache-id]/node_modules/luma-mcp-server/exports/`
+- macOS (source): `/path/to/luma-mcp-server/exports/`
+- Windows (npm): `%APPDATA%\npm-cache\_npx\[cache-id]\node_modules\luma-mcp-server\exports\`
+- Windows (source): `C:\path\to\luma-mcp-server\exports\`
+
 **Example usage:**
 ```
 # Export specific event
@@ -260,27 +318,175 @@ export_guest_list(include_all_events=true, include_future_only=true)
 export_guest_list(event_ids=["evt-abc123", "evt-def456"], filename="trust_square_guests.csv")
 ```
 
-**Note:** The tool returns a preview of the CSV content. The full CSV data is included in the response metadata for saving.
+**Note:** The tool saves the CSV file directly to the filesystem and returns the full file path in the response.
 
-### Integration with MCP Clients
+### Finding Your Exported Files
 
-To use this server with an MCP-compatible AI client, configure the client to connect to this server using stdio transport.
+**macOS:**
+- If installed from source: Check the `exports/` folder in your luma-mcp-server directory
+- If installed via npm: The file path will be shown in Claude's response
 
-Example configuration for Claude Desktop:
+**Windows:**
+- If installed from source: Check the `exports\` folder in your luma-mcp-server directory  
+- If installed via npm: The file path will be shown in Claude's response
+
+**Tip:** The easiest way to access your exported file is to copy the full path from Claude's response and open it directly in your file explorer or terminal.
+
+## Claude Desktop Configuration
+
+### macOS
+
+1. **Find your Claude Desktop configuration file:**
+   ```bash
+   # The config file is located at:
+   ~/Library/Application Support/Claude/claude_desktop_config.json
+   ```
+
+2. **Open the configuration file:**
+   ```bash
+   open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+   ```
+   
+   Or use your preferred text editor:
+   ```bash
+   nano "~/Library/Application Support/Claude/claude_desktop_config.json"
+   ```
+
+3. **Add the Lu.ma MCP server configuration:**
+
+   If you installed via npm:
+   ```json
+   {
+     "mcpServers": {
+       "luma": {
+         "command": "npx",
+         "args": ["luma-mcp-server"]
+       }
+     }
+   }
+   ```
+
+   If you installed from source:
+   ```json
+   {
+     "mcpServers": {
+       "luma": {
+         "command": "node",
+         "args": ["/Users/YOUR_USERNAME/path/to/luma-mcp-server/dist/index.js"]
+       }
+     }
+   }
+   ```
+
+4. **Save the file and restart Claude Desktop**
+
+### Windows
+
+1. **Find your Claude Desktop configuration file:**
+   ```cmd
+   # The config file is located at:
+   %APPDATA%\Claude\claude_desktop_config.json
+   ```
+
+2. **Open the configuration file:**
+   
+   Press `Win + R`, type the following, and press Enter:
+   ```
+   notepad %APPDATA%\Claude\claude_desktop_config.json
+   ```
+
+3. **Add the Lu.ma MCP server configuration:**
+
+   If you installed via npm:
+   ```json
+   {
+     "mcpServers": {
+       "luma": {
+         "command": "npx.cmd",
+         "args": ["luma-mcp-server"]
+       }
+     }
+   }
+   ```
+
+   If you installed from source:
+   ```json
+   {
+     "mcpServers": {
+       "luma": {
+         "command": "node",
+         "args": ["C:\\Users\\YOUR_USERNAME\\path\\to\\luma-mcp-server\\dist\\index.js"]
+       }
+     }
+   }
+   ```
+
+   **Note:** On Windows, you must use double backslashes (`\\`) in the path.
+
+4. **Save the file and restart Claude Desktop**
+
+### Verifying the Installation
+
+1. Open Claude Desktop
+2. Look for the MCP connection indicator (usually shown as a small icon or status)
+3. Try asking Claude: "Can you list my Lu.ma calendars?"
+4. If this is your first time, Claude will guide you through configuring your first calendar
+
+### Troubleshooting
+
+**MCP server not connecting:**
+- Ensure Node.js 18+ is installed: `node --version`
+- Check that the path in your config file is correct
+- On macOS, ensure you're using the correct path separators (`/`)
+- On Windows, ensure you're using double backslashes (`\\`) in paths
+- Check Claude Desktop logs for error messages
+
+**Permission errors on macOS:**
+- You may need to grant terminal/node permissions in System Preferences > Security & Privacy
+
+**Command not found errors:**
+- If using npm global install, ensure npm's global bin directory is in your PATH
+- Try using the full path to node and the script instead
+
+### Multiple MCP Servers
+
+If you have other MCP servers configured, your configuration might look like this:
 
 ```json
 {
   "mcpServers": {
     "luma": {
-      "command": "node",
-      "args": ["/path/to/luma-mcp-server/dist/index.js"],
-      "env": {
-        "LUMA_API_KEY": "your-api-key-here"
-      }
+      "command": "npx",
+      "args": ["luma-mcp-server"]
+    },
+    "other-server": {
+      "command": "npx",
+      "args": ["other-mcp-server"]
     }
   }
 }
 ```
+
+## Common Issues and Solutions
+
+### "No calendars configured" Error
+**Solution:** You need to configure at least one calendar first. Ask Claude: "Please add my Lu.ma calendar with API key [your-key]"
+
+### Cannot Find Exported CSV Files
+**Solution:** Check the file path shown in Claude's response. You can also ask Claude: "Where are my exported CSV files saved?"
+
+### API Key Validation Failed
+**Possible causes:**
+- Invalid API key - double-check your key from Lu.ma dashboard
+- No Lu.ma Plus subscription - API access requires Plus
+- Wrong calendar - each API key is tied to a specific calendar
+
+### MCP Server Not Showing in Claude
+**Solutions:**
+1. Ensure Claude Desktop is fully closed and restart it
+2. Check your config file syntax - must be valid JSON
+3. Verify Node.js 18+ is installed: `node --version`
+4. Check Claude Desktop logs for errors
 
 ## API Rate Limits
 
