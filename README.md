@@ -7,6 +7,7 @@ A Model Context Protocol (MCP) server that provides AI agents with the ability t
 This MCP server enables AI agents to:
 
 - **Get Event Information**: Retrieve detailed information about Lu.ma events
+- **Update Events**: Modify event details with a built-in approval workflow
 - **Manage Guest Data**: Access guest lists, individual guest details, and registration information
 - **Handle Pagination**: Automatically manage large guest lists with built-in pagination support
 - **Comprehensive Summaries**: Generate complete event summaries with guest analytics
@@ -21,7 +22,7 @@ This MCP server enables AI agents to:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/Trust-Square/luma-mcp-server.git
+git clone https://github.com/yourusername/luma-mcp-server.git
 cd luma-mcp-server
 ```
 
@@ -121,6 +122,34 @@ Get a comprehensive summary including event details and guest analytics.
 **Parameters:**
 - `event_api_id` (string, required): The API ID of the event
 - `include_guest_details` (boolean, optional): Include guest information (default: true)
+
+#### 6. `update_event`
+Update event details with approval workflow.
+
+**Parameters:**
+- `api_id` (string, required): The API ID of the event to update
+- `require_approval` (boolean, optional): Ask for approval before making changes (default: true)
+- `name` (string, optional): New event name
+- `description` (string, optional): New event description
+- `start_at` (string, optional): New start date/time (ISO 8601 format)
+- `end_at` (string, optional): New end date/time (ISO 8601 format)
+- `timezone` (string, optional): New timezone (e.g., 'America/New_York')
+- `event_type` (string, optional): Event type ('in_person', 'online', or 'hybrid')
+- `visibility` (string, optional): Event visibility ('public', 'private', or 'unlisted')
+- `meeting_url` (string, optional): Meeting URL for online events
+- `cover_url` (string, optional): URL for event cover image
+- `geo_address_json` (object, optional): Location details for in-person events
+
+**Example Usage:**
+```
+# First call - shows proposed changes and asks for approval
+update_event(api_id="evt-12345", name="Updated Tech Meetup", start_at="2024-12-20T18:00:00Z")
+
+# Second call - applies the changes
+update_event(api_id="evt-12345", name="Updated Tech Meetup", start_at="2024-12-20T18:00:00Z", require_approval=false)
+```
+
+**Note:** This tool implements a two-step approval process by default. The first call shows what changes will be made without applying them. To actually update the event, call the tool again with `require_approval: false`.
 
 ### Integration with MCP Clients
 

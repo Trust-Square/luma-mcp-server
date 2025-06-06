@@ -343,6 +343,25 @@ class LumaMCPServer {
 
     return allGuests;
   }
+
+  async updateEvent(eventApiId: string, updates: Partial<EventDetails>): Promise<EventDetails> {
+    const body = {
+      api_id: eventApiId,
+      ...updates
+    };
+
+    const response = await this.makeRequest(`/event/update`, "POST", body, true);
+    
+    // The API returns the event data nested under an "event" key
+    if (!response.event) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        "Invalid API response: missing event data"
+      );
+    }
+    
+    return response.event;
+  }
 }
 
 // Main MCP Server Implementation
@@ -515,6 +534,87 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             include_guest_details: {
               type: "boolean",
               description: "Include detailed guest analytics in the summary (default: true)",
+              default: true,
+            },
+          },
+          required: ["api_id"],
+        },
+      },
+      {
+        name: "update_event",
+        description: "✏️ Update Event - Update event details (requires approval before making changes)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            api_id: {
+              type: "string",
+              description: "The event ID to update (e.g., 'evt-12345')",
+            },
+            name: {
+              type: "string",
+              description: "New event name",
+            },
+            description: {
+              type: "string",
+              description: "New event description",
+            },
+            start_at: {
+              type: "string",
+              description: "New start date/time (ISO 8601 format, e.g., '2025-06-15T18:00:00Z')",
+            },
+            end_at: {
+              type: "string",
+              description: "New end date/time (ISO 8601 format)",
+            },
+            timezone: {
+              type: "string",
+              description: "New timezone (e.g., 'America/New_York', 'Europe/London')",
+            },
+            event_type: {
+              type: "string",
+              description: "Event type",
+              enum: ["in_person", "online", "hybrid"],
+            },
+            geo_address_json: {
+              type: "object",
+              description: "Location details for in-person events",
+              properties: {
+                city: { type: "string" },
+                region: { type: "string" },
+                address: { type: "string" },
+                country: { type: "string" },
+                full_address: { type: "string" },
+                description: { type: "string" },
+              },
+            },
+            geo_latitude: {
+              type: "string",
+              description: "Latitude for location",
+            },
+            geo_longitude: {
+              type: "string",
+              description: "Longitude for location",
+            },
+            visibility: {
+              type: "string",
+              description: "Event visibility",
+              enum: ["public", "private", "unlisted"],
+            },
+            meeting_url: {
+              type: "string",
+              description: "Meeting URL for online events",
+            },
+            zoom_meeting_url: {
+              type: "string",
+              description: "Zoom meeting URL",
+            },
+            cover_url: {
+              type: "string",
+              description: "URL for event cover image",
+            },
+            require_approval: {
+              type: "boolean",
+              description: "Ask for approval before making changes (default: true)",
               default: true,
             },
           },
@@ -971,6 +1071,132 @@ ${statusBreakdown}`;
             },
           ],
         };
+      }
+
+      case "update_event": {
+        const { api_id, require_approval = true, ...updates } = args as {
+          api_id: string;
+          require_approval?: boolean;
+          name?: string;
+          description?: string;
+          start_at?: string;
+          end_at?: string;
+          timezone?: string;
+          event_type?: "in_person" | "online" | "hybrid";
+          geo_address_json?: any;
+          geo_latitude?: string;
+          geo_longitude?: string;
+          visibility?: "public" | "private" | "unlisted";
+          meeting_url?: string;
+          zoom_meeting_url?: string;
+          cover_url?: string;
+        };
+
+        // First, get the current event details
+        const currentEvent = await lumaClient.getEvent(api_id);
+        
+        // Format the changes for display
+        const changes: string[] = [];
+        
+        if (updates.name && updates.name !== currentEvent.name) {
+          changes.push(`- Name: "${currentEvent.name}" → "${updates.name}"`);
+        }
+        if (updates.description !== undefined && updates.description !== currentEvent.description) {
+          const currentDesc = currentEvent.description ? `"${currentEvent.description.substring(0, 50)}${currentEvent.description.length > 50 ? '...' : ''}"` : "(empty)";
+          const newDesc = updates.description ? `"${updates.description.substring(0, 50)}${updates.description.length > 50 ? '...' : ''}"` : "(empty)";
+          changes.push(`- Description: ${currentDesc} → ${newDesc}`);
+        }
+        if (updates.start_at && updates.start_at !== currentEvent.start_at) {
+          changes.push(`- Start: ${new Date(currentEvent.start_at).toLocaleString()} → ${new Date(updates.start_at).toLocaleString()}`);
+        }
+        if (updates.end_at !== undefined && updates.end_at !== currentEvent.end_at) {
+          const currentEnd = currentEvent.end_at ? new Date(currentEvent.end_at).toLocaleString() : "Not set";
+          const newEnd = updates.end_at ? new Date(updates.end_at).toLocaleString() : "Not set";
+          changes.push(`- End: ${currentEnd} → ${newEnd}`);
+        }
+        if (updates.timezone && updates.timezone !== currentEvent.timezone) {
+          changes.push(`- Timezone: ${currentEvent.timezone} → ${updates.timezone}`);
+        }
+        if (updates.visibility && updates.visibility !== currentEvent.visibility) {
+          changes.push(`- Visibility: ${currentEvent.visibility || "public"} → ${updates.visibility}`);
+        }
+        if (updates.event_type) {
+          const currentType = currentEvent.meeting_url || currentEvent.zoom_meeting_url ? 
+            (currentEvent.geo_address_json ? "hybrid" : "online") : 
+            (currentEvent.geo_address_json ? "in_person" : "unknown");
+          if (updates.event_type !== currentType) {
+            changes.push(`- Type: ${currentType} → ${updates.event_type}`);
+          }
+        }
+        if (updates.meeting_url !== undefined && updates.meeting_url !== currentEvent.meeting_url) {
+          const currentUrl = currentEvent.meeting_url || "Not set";
+          const newUrl = updates.meeting_url || "Not set";
+          changes.push(`- Meeting URL: ${currentUrl} → ${newUrl}`);
+        }
+        if (updates.geo_address_json) {
+          changes.push(`- Location updated`);
+        }
+        
+        if (changes.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No changes to apply. All provided values match the current event details.",
+              },
+            ],
+          };
+        }
+
+        // Build the approval message
+        const approvalMessage = `**Update Event: ${currentEvent.name}**
+
+Proposed changes:
+${changes.join('\n')}
+
+**Do you want to proceed with these updates?**`;
+        
+        if (require_approval) {
+          // Return the approval request without making changes
+          return {
+            content: [
+              {
+                type: "text",
+                text: approvalMessage + "\n\n⚠️ **No changes have been made yet.** To apply these updates, run the command again with `require_approval: false`.",
+              },
+            ],
+          };
+        } else {
+          // Actually update the event
+          try {
+            const updatedEvent = await lumaClient.updateEvent(api_id, updates);
+            
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `✅ **Event Updated Successfully!**
+
+Applied changes:
+${changes.join('\n')}
+
+**Updated Event Details:**
+- Event ID: ${updatedEvent.api_id}
+- Name: ${updatedEvent.name}
+- Start: ${new Date(updatedEvent.start_at).toLocaleString()}
+- Timezone: ${updatedEvent.timezone}
+- Visibility: ${updatedEvent.visibility || "public"}
+- URL: ${updatedEvent.url || "Not available"}`,
+                },
+              ],
+            };
+          } catch (error) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Failed to update event: ${error instanceof Error ? error.message : "Unknown error"}`
+            );
+          }
+        }
       }
 
       default:
