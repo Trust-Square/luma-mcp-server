@@ -6,6 +6,7 @@ A Model Context Protocol (MCP) server that provides AI agents with the ability t
 
 This MCP server enables AI agents to:
 
+- **Easy Setup**: Configure API credentials through natural language commands
 - **Get Event Information**: Retrieve detailed information about Lu.ma events
 - **Update Events**: Modify event details with a built-in approval workflow
 - **Manage Guest Data**: Access guest lists, individual guest details, and registration information
@@ -38,12 +39,30 @@ npm run build
 
 ## Configuration
 
-### Environment Variables
+### Quick Setup with AI
 
-Set your Lu.ma API key as an environment variable:
+The easiest way to configure the server is through the AI interface:
+
+```
+You: Please configure Lu.ma with my API key "luma_api_abc123xyz"
+
+AI: I'll configure the Lu.ma API with your credentials.
+[Configures API key and validates it]
+Lu.ma API configured successfully! Found 5 events in your account.
+```
+
+### Manual Setup
+
+Alternatively, you can set your Lu.ma API key as an environment variable:
 
 ```bash
 export LUMA_API_KEY="your-luma-api-key-here"
+```
+
+Or create a `.env` file in the project root:
+
+```bash
+LUMA_API_KEY=your-luma-api-key-here
 ```
 
 ### Getting Your API Key
@@ -75,7 +94,43 @@ npm run dev
 
 The server provides the following tools for AI agents:
 
-#### 1. `get_event`
+#### 1. `configure_luma`
+Set up and validate your Lu.ma API credentials.
+
+**Parameters:**
+- `api_key` (string, required): Your Lu.ma API key
+- `validate` (boolean, optional): Test the API key by making a validation request (default: true)
+
+**Example:**
+```
+AI: I'll configure Lu.ma with your API key.
+
+Response:
+🔧 Lu.ma API Configuration Complete
+- API key has been saved
+- Configuration file created: /path/to/.env
+- Environment variable LUMA_API_KEY set
+✅ API key validated successfully!
+- Found multiple events in your account
+```
+
+#### 2. `list_events`
+Browse your Lu.ma events with optional date filtering and pagination.
+
+**Parameters:**
+- `pagination_cursor` (string, optional): Continue from a previous page
+- `pagination_limit` (number, optional): Number of events to show (1-100, default 50)
+- `after` (string, optional): Show events starting after this date (ISO 8601 format)
+- `before` (string, optional): Show events starting before this date (ISO 8601 format)
+- `series_mode` (string, optional): How to handle recurring events ('instances' or 'series')
+- `include_cancelled` (boolean, optional): Include cancelled events (default: false)
+
+#### 3. `get_all_events`
+Get complete analytics and overview of all your events (automatically handles pagination).
+
+**Parameters:** None
+
+#### 4. `get_event`
 Get detailed information about a specific event.
 
 **Parameters:**
@@ -91,7 +146,7 @@ Event Details for Tech Meetup:
 - Location: Conference Center
 ```
 
-#### 2. `get_event_guest`
+#### 5. `get_event_guest`
 Get information about a specific guest.
 
 **Parameters:**
@@ -102,7 +157,7 @@ Get information about a specific guest.
 
 *Note: Provide one of guest_api_id, email, or proxy_key to identify the guest.*
 
-#### 3. `get_event_guests`
+#### 6. `get_event_guests`
 Get a paginated list of guests for an event.
 
 **Parameters:**
@@ -110,20 +165,20 @@ Get a paginated list of guests for an event.
 - `pagination_cursor` (string, optional): Cursor for pagination
 - `pagination_limit` (number, optional): Number of guests to return (1-100)
 
-#### 4. `get_all_event_guests`
+#### 7. `get_all_event_guests`
 Get all guests for an event (automatically handles pagination).
 
 **Parameters:**
 - `event_api_id` (string, required): The API ID of the event
 
-#### 5. `get_event_summary`
+#### 8. `get_event_summary`
 Get a comprehensive summary including event details and guest analytics.
 
 **Parameters:**
 - `event_api_id` (string, required): The API ID of the event
 - `include_guest_details` (boolean, optional): Include guest information (default: true)
 
-#### 6. `update_event`
+#### 9. `update_event`
 Update event details with approval workflow.
 
 **Parameters:**
