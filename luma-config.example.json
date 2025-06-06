@@ -1,0 +1,15 @@
+{
+  "calendars": [
+    {
+      "name": "personal",
+      "apiKey": "your-personal-calendar-api-key",
+      "description": "Personal events calendar"
+    },
+    {
+      "name": "work",
+      "apiKey": "your-work-calendar-api-key",
+      "description": "Work events and meetings"
+    }
+  ],
+  "defaultCalendar": "personal"
+}

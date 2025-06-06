@@ -7,21 +7,78 @@ This document demonstrates typical workflows when using the Lu.ma MCP server thr
 ### First-time Configuration
 
 ```
-Human: I have a Lu.ma Plus account. Can you help me set it up? My API key is luma_api_sk_1234567890abcdef
+Human: I have a Lu.ma Plus account. Can you help me set it up? My personal calendar API key is luma_api_personal_abc123
 
-AI: I'll configure the Lu.ma API with your credentials.
+AI: I'll configure your personal Lu.ma calendar with the provided API key.
 
-[Calls configure_luma tool with api_key="luma_api_sk_1234567890abcdef"]
+[Calls configure_calendar tool with name="personal", api_key="luma_api_personal_abc123"]
 
 Response:
-🔧 Lu.ma API Configuration Complete
-- API key has been saved
-- Configuration file created: /Users/username/luma-mcp-server/.env
-- Environment variable LUMA_API_KEY set
+🔧 Calendar Added: personal
+- Calendar name: personal
+- Description: (none)
+- Configuration saved to: /Users/username/luma-mcp-server/luma-config.json
+- Default calendar: Yes
 ✅ API key validated successfully!
-- Found 12 event(s) in your account
+- Found 12 event(s) in this calendar
 
-You can now use all Lu.ma tools to manage your events and guests!
+You can now use this calendar for all Lu.ma operations (active by default).
+```
+
+### Adding Additional Calendars
+
+```
+Human: I also manage our company events. Add my work calendar with key luma_api_work_xyz789
+
+AI: I'll add your work calendar to the configuration.
+
+[Calls configure_calendar with name="work", api_key="luma_api_work_xyz789", description="Company events and meetings"]
+
+Response:
+🔧 Calendar Added: work
+- Calendar name: work
+- Description: Company events and meetings
+- Configuration saved to: /Users/username/luma-mcp-server/luma-config.json
+- Default calendar: No
+✅ API key validated successfully!
+- Found 25 event(s) in this calendar
+
+You now have 2 calendars configured. Use 'switch_calendar' to change between them.
+```
+
+### Switching Between Calendars
+
+```
+Human: Show me which calendars I have configured
+
+AI: I'll list all your configured calendars.
+
+[Calls list_calendars]
+
+Response:
+📋 **Configured Calendars** (2 total)
+
+1. **personal** (default) ⬅ active
+   - Description: (none)
+   - API key: luma_api_pe...c123
+
+2. **work**
+   - Description: Company events and meetings
+   - API key: luma_api_wo...x789
+
+Current active calendar: **personal**
+
+Human: Switch to my work calendar
+
+AI: I'll switch to your work calendar.
+
+[Calls switch_calendar with name="work"]
+
+Response:
+🔄 **Switched to calendar: work**
+
+All subsequent operations will use this calendar.
+Description: Company events and meetings
 ```
 
 ## Common Workflows
@@ -189,25 +246,26 @@ You have 15 total events, with 8 public events and a good mix of in-person and o
 ### Invalid API Key
 
 ```
-Human: Configure lu.ma with key "invalid_key_123"
+Human: Add a test calendar with key "invalid_key_123"
 
-AI: I'll configure the Lu.ma API with your credentials.
+AI: I'll configure a test calendar with the provided API key.
 
-[Calls configure_luma with api_key="invalid_key_123"]
+[Calls configure_calendar with name="test", api_key="invalid_key_123"]
 
-🔧 **Lu.ma API Configuration Complete**
+🔧 **Calendar Added: test**
 
-- API key has been saved
-- Configuration file created: /Users/username/luma-mcp-server/.env
-- Environment variable LUMA_API_KEY set
+- Calendar name: test
+- Description: (none)
+- Configuration saved to: /Users/username/luma-mcp-server/luma-config.json
+- Default calendar: No
 
 ⚠️ **Warning:** API key validation failed. This might be an invalid key or insufficient permissions.
-The key has been saved, but you may encounter errors when using other tools.
+The calendar has been saved, but you may encounter errors when using it.
 
 Please double-check your API key from the Lu.ma dashboard.
 ```
 
-### No API Key Configured
+### No Calendars Configured
 
 ```
 Human: What events do I have?
@@ -216,21 +274,27 @@ AI: I'll check your events.
 
 [Attempts to call list_events]
 
-Error: Lu.ma API key not configured. Please use the 'configure_luma' tool to set up your API key first.
+Error: No calendars configured. Please use the 'configure_calendar' tool to add a calendar first.
 
-To get started, you'll need to provide your Lu.ma API key. You can get this from your Lu.ma dashboard if you have a Lu.ma Plus subscription.
+To get started, you'll need to add at least one Lu.ma calendar with its API key. You can get API keys from your Lu.ma dashboard if you have a Lu.ma Plus subscription.
 ```
 
 ## Tips for AI Agents
 
-1. **Always validate first**: The configure_luma tool validates by default, helping catch issues early.
+1. **Calendar Context**: Always be aware of which calendar is active. Include the calendar name in responses when showing events or guests.
 
-2. **Use natural language**: Convert technical parameters into user-friendly language:
+2. **Smart Calendar Switching**: If a user mentions "work events" or "personal calendar", consider switching to the appropriate calendar automatically.
+
+3. **Always validate first**: The configure_calendar tool validates by default, helping catch issues early.
+
+4. **Use natural language**: Convert technical parameters into user-friendly language:
    - "next week" → calculate actual date ranges
    - "7 PM" → convert to proper ISO 8601 format with timezone
 
-3. **Provide context**: When showing results, add helpful context like event counts, types, and summaries.
+5. **Provide context**: When showing results, add helpful context like event counts, types, and summaries.
 
-4. **Handle pagination gracefully**: Use get_all_* tools for complete data, or mention when there are more results available.
+6. **Handle pagination gracefully**: Use get_all_* tools for complete data, or mention when there are more results available.
 
-5. **Two-step updates**: Always show proposed changes before applying them, giving users a chance to review.
+7. **Two-step updates**: Always show proposed changes before applying them, giving users a chance to review.
+
+8. **Migration Support**: If you encounter a single API key in .env format, the system will automatically migrate it to the new multi-calendar format.

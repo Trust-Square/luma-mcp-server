@@ -15,6 +15,9 @@ build/
 .env.test.local
 .env.production.local
 
+# Lu.ma configuration
+luma-config.json
+
 # Editor directories and files
 .vscode/
 .idea/

@@ -17,11 +17,23 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, '..');
 const ENV_FILE_PATH = join(PROJECT_ROOT, '.env');
+const CONFIG_FILE_PATH = join(PROJECT_ROOT, 'luma-config.json');
 
 // Types based on our OpenAPI specification
 interface LumaApiConfig {
   apiKey: string;
   baseUrl?: string;
+}
+
+interface CalendarConfig {
+  name: string;
+  apiKey: string;
+  description?: string;
+}
+
+interface ConfigFile {
+  calendars: CalendarConfig[];
+  defaultCalendar?: string;
 }
 
 interface EventDetails {
@@ -386,7 +398,9 @@ const server = new Server(
   }
 );
 
-let lumaClient: LumaMCPServer | null = null;
+// Store multiple calendar clients
+const lumaClients: Map<string, LumaMCPServer> = new Map();
+let currentCalendar: string | null = null;
 
 // Helper functions for .env file management
 function readEnvFile(): Record<string, string> {
@@ -435,6 +449,95 @@ function updateApiKey(apiKey: string): void {
   process.env.LUMA_API_KEY = apiKey;
 }
 
+// New configuration functions for multi-calendar support
+function readConfigFile(): ConfigFile {
+  if (existsSync(CONFIG_FILE_PATH)) {
+    try {
+      const content = readFileSync(CONFIG_FILE_PATH, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Error reading config file, creating new one');
+    }
+  }
+  return { calendars: [] };
+}
+
+function writeConfigFile(config: ConfigFile): void {
+  writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 2));
+}
+
+function addOrUpdateCalendar(name: string, apiKey: string, description?: string): void {
+  const config = readConfigFile();
+  
+  // Check if calendar already exists
+  const existingIndex = config.calendars.findIndex(cal => cal.name === name);
+  
+  if (existingIndex >= 0) {
+    // Update existing calendar
+    config.calendars[existingIndex] = { name, apiKey, description };
+  } else {
+    // Add new calendar
+    config.calendars.push({ name, apiKey, description });
+    
+    // Set as default if it's the first calendar
+    if (config.calendars.length === 1) {
+      config.defaultCalendar = name;
+    }
+  }
+  
+  writeConfigFile(config);
+}
+
+function getCurrentClient(): LumaMCPServer {
+  if (!currentCalendar) {
+    const config = readConfigFile();
+    if (config.calendars.length === 0) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        "No calendars configured. Please use the 'configure_calendar' tool to add a calendar first."
+      );
+    }
+    currentCalendar = config.defaultCalendar || config.calendars[0].name;
+  }
+  
+  const client = lumaClients.get(currentCalendar);
+  if (!client) {
+    throw new McpError(
+      ErrorCode.InvalidRequest,
+      `Calendar '${currentCalendar}' not found in active clients.`
+    );
+  }
+  
+  return client;
+}
+
+function loadCalendarsFromConfig(): void {
+  const config = readConfigFile();
+  
+  // Also check for legacy .env file
+  if (config.calendars.length === 0 && existsSync(ENV_FILE_PATH)) {
+    const env = readEnvFile();
+    if (env.LUMA_API_KEY) {
+      // Migrate from .env to new config format
+      console.error("Migrating from .env to multi-calendar config");
+      addOrUpdateCalendar('default', env.LUMA_API_KEY, 'Migrated from .env file');
+      // Reload config
+      const newConfig = readConfigFile();
+      config.calendars = newConfig.calendars;
+      config.defaultCalendar = newConfig.defaultCalendar;
+    }
+  }
+  
+  // Initialize clients for all calendars
+  for (const calendar of config.calendars) {
+    lumaClients.set(calendar.name, new LumaMCPServer({ apiKey: calendar.apiKey }));
+  }
+  
+  if (config.defaultCalendar) {
+    currentCalendar = config.defaultCalendar;
+  }
+}
+
 // Initialize the Luma client
 function initializeLumaClient(): LumaMCPServer {
   const apiKey = process.env.LUMA_API_KEY;
@@ -454,14 +557,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "configure_luma",
-        description: "🔧 Configure Lu.ma API - Set up your API key and validate credentials",
+        name: "configure_calendar",
+        description: "🔧 Configure Calendar - Add or update a Lu.ma calendar with API key",
         inputSchema: {
           type: "object",
           properties: {
+            name: {
+              type: "string",
+              description: "Name for this calendar (e.g., 'personal', 'work', 'community')",
+            },
             api_key: {
               type: "string",
-              description: "Your Lu.ma API key from the dashboard",
+              description: "API key for this calendar from the Lu.ma dashboard",
+            },
+            description: {
+              type: "string",
+              description: "Optional description for this calendar",
+            },
+            set_as_default: {
+              type: "boolean",
+              description: "Set this calendar as the default (default: true for first calendar)",
+              default: false,
             },
             validate: {
               type: "boolean",
@@ -469,7 +585,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               default: true,
             },
           },
-          required: ["api_key"],
+          required: ["name", "api_key"],
+        },
+      },
+      {
+        name: "list_calendars",
+        description: "📋 List Calendars - Show all configured calendars",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: "switch_calendar",
+        description: "🔄 Switch Calendar - Change the active calendar",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "Name of the calendar to switch to",
+            },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "remove_calendar",
+        description: "🗑️ Remove Calendar - Remove a calendar configuration",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "Name of the calendar to remove",
+            },
+            confirm: {
+              type: "boolean",
+              description: "Confirm removal (default: false)",
+              default: false,
+            },
+          },
+          required: ["name"],
         },
       },
       {
@@ -704,63 +862,198 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   
-  // Allow configure_luma to run without an existing client
-  if (name !== "configure_luma" && !lumaClient) {
+  // Calendar management tools don't need an active client
+  const calendarManagementTools = ['configure_calendar', 'list_calendars', 'switch_calendar', 'remove_calendar'];
+  
+  // Get current client for non-management tools
+  let lumaClient: LumaMCPServer | null = null;
+  if (!calendarManagementTools.includes(name)) {
     try {
-      lumaClient = initializeLumaClient();
+      lumaClient = getCurrentClient();
     } catch (error) {
-      if (error instanceof McpError && error.message.includes("not configured")) {
-        throw new McpError(
-          ErrorCode.InvalidRequest,
-          "Lu.ma API key not configured. Please use the 'configure_luma' tool to set up your API key first."
-        );
+      if (error instanceof McpError) {
+        throw error;
       }
-      throw error;
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get calendar client: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   try {
     switch (name) {
-      case "configure_luma": {
-        const { api_key, validate = true } = args as {
+      case "configure_calendar": {
+        const { name, api_key, description, set_as_default = false, validate = true } = args as {
+          name: string;
           api_key: string;
+          description?: string;
+          set_as_default?: boolean;
           validate?: boolean;
         };
 
-        // Update the .env file and environment
-        updateApiKey(api_key);
+        // Add or update the calendar
+        addOrUpdateCalendar(name, api_key, description);
         
-        // Reinitialize the client with the new API key
-        lumaClient = new LumaMCPServer({ apiKey: api_key });
+        // Create client for this calendar
+        const newClient = new LumaMCPServer({ apiKey: api_key });
+        lumaClients.set(name, newClient);
         
         let validationResult = "";
         
         if (validate) {
           try {
             // Try to fetch events to validate the API key
-            const testResponse = await lumaClient.listEvents({
+            const testResponse = await newClient.listEvents({
               paginationLimit: 1
             });
             
-            validationResult = `\n\n✅ **API key validated successfully!**\n- Found ${testResponse.has_more ? "multiple" : testResponse.entries.length} event(s) in your account`;
+            validationResult = `\n\n✅ **API key validated successfully!**\n- Found ${testResponse.has_more ? "multiple" : testResponse.entries.length} event(s) in this calendar`;
           } catch (error) {
             // If validation fails, still keep the key but warn the user
             if (error instanceof McpError && error.message.includes("401")) {
-              validationResult = `\n\n⚠️ **Warning:** API key validation failed. This might be an invalid key or insufficient permissions.\nThe key has been saved, but you may encounter errors when using other tools.`;
+              validationResult = `\n\n⚠️ **Warning:** API key validation failed. This might be an invalid key or insufficient permissions.\nThe calendar has been saved, but you may encounter errors when using it.`;
             } else {
-              validationResult = `\n\n⚠️ **Warning:** Could not validate API key due to a network error.\nThe key has been saved and may work correctly.`;
+              validationResult = `\n\n⚠️ **Warning:** Could not validate API key due to a network error.\nThe calendar has been saved and may work correctly.`;
             }
           }
         }
         
-        // Check if .env file was created or updated
-        const fileAction = existsSync(ENV_FILE_PATH) ? "updated" : "created";
+        // Set as default if requested or if it's the first calendar
+        const config = readConfigFile();
+        if (set_as_default || config.calendars.length === 1) {
+          config.defaultCalendar = name;
+          writeConfigFile(config);
+          currentCalendar = name;
+        }
+        
+        const isUpdate = config.calendars.filter(cal => cal.name === name).length > 0;
         
         return {
           content: [
             {
               type: "text",
-              text: `🔧 **Lu.ma API Configuration Complete**\n\n- API key has been saved\n- Configuration file ${fileAction}: ${ENV_FILE_PATH}\n- Environment variable LUMA_API_KEY set${validationResult}\n\nYou can now use all Lu.ma tools to manage your events and guests!`,
+              text: `🔧 **Calendar ${isUpdate ? 'Updated' : 'Added'}: ${name}**\n\n- Calendar name: ${name}\n- Description: ${description || '(none)'}\n- Configuration saved to: ${CONFIG_FILE_PATH}\n- Default calendar: ${config.defaultCalendar === name ? 'Yes' : 'No'}${validationResult}\n\nYou can now use this calendar for all Lu.ma operations${config.defaultCalendar === name ? ' (active by default)' : ''}.`,
+            },
+          ],
+        };
+      }
+
+      case "list_calendars": {
+        const config = readConfigFile();
+        
+        if (config.calendars.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No calendars configured. Use the 'configure_calendar' tool to add your first calendar.",
+              },
+            ],
+          };
+        }
+        
+        const calendarList = config.calendars.map((cal, index) => {
+          const isDefault = cal.name === config.defaultCalendar;
+          const isActive = cal.name === currentCalendar;
+          return `${index + 1}. **${cal.name}**${isDefault ? ' (default)' : ''}${isActive ? ' ⬅ active' : ''}\n   - Description: ${cal.description || '(none)'}\n   - API key: ${cal.apiKey.substring(0, 10)}...${cal.apiKey.slice(-4)}`;
+        }).join('\n\n');
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📋 **Configured Calendars** (${config.calendars.length} total)\n\n${calendarList}\n\nCurrent active calendar: **${currentCalendar || config.defaultCalendar || 'none'}**`,
+            },
+          ],
+        };
+      }
+
+      case "switch_calendar": {
+        const { name } = args as { name: string };
+        
+        const config = readConfigFile();
+        const calendar = config.calendars.find(cal => cal.name === name);
+        
+        if (!calendar) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Calendar '${name}' not found. Use 'list_calendars' to see available calendars.`,
+              },
+            ],
+          };
+        }
+        
+        // Ensure client exists for this calendar
+        if (!lumaClients.has(name)) {
+          lumaClients.set(name, new LumaMCPServer({ apiKey: calendar.apiKey }));
+        }
+        
+        currentCalendar = name;
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔄 **Switched to calendar: ${name}**\n\nAll subsequent operations will use this calendar.\nDescription: ${calendar.description || '(none)'}`,
+            },
+          ],
+        };
+      }
+
+      case "remove_calendar": {
+        const { name, confirm = false } = args as { name: string; confirm?: boolean };
+        
+        const config = readConfigFile();
+        const calendarIndex = config.calendars.findIndex(cal => cal.name === name);
+        
+        if (calendarIndex === -1) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Calendar '${name}' not found. Use 'list_calendars' to see available calendars.`,
+              },
+            ],
+          };
+        }
+        
+        if (!confirm) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `⚠️ **Confirm Removal**\n\nAre you sure you want to remove the calendar '${name}'?\n\nTo confirm, run the command again with \`confirm: true\`.`,
+              },
+            ],
+          };
+        }
+        
+        // Remove the calendar
+        config.calendars.splice(calendarIndex, 1);
+        
+        // Update default if necessary
+        if (config.defaultCalendar === name) {
+          config.defaultCalendar = config.calendars.length > 0 ? config.calendars[0].name : undefined;
+        }
+        
+        writeConfigFile(config);
+        
+        // Remove from active clients
+        lumaClients.delete(name);
+        
+        // Update current calendar if necessary
+        if (currentCalendar === name) {
+          currentCalendar = config.defaultCalendar || null;
+        }
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🗑️ **Calendar Removed: ${name}**\n\nThe calendar has been removed from your configuration.${config.calendars.length > 0 ? `\nDefault calendar is now: ${config.defaultCalendar}` : '\nNo calendars remaining.'}`,
             },
           ],
         };
@@ -783,7 +1076,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           include_cancelled?: boolean;
         };
 
-        const response = await lumaClient.listEvents({
+        const response = await lumaClient!.listEvents({
           paginationCursor: pagination_cursor,
           paginationLimit: pagination_limit,
           after,
@@ -817,7 +1110,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: "text",
-              text: `Events List (Page Results):
+              text: `Events List (Page Results) - Calendar: **${currentCalendar}**:
 
 **Pagination Info:**
 - Showing ${response.entries.length} events
@@ -837,7 +1130,7 @@ ${eventsList || "No events found"}`,
       }
 
       case "get_all_events": {
-        const allEvents = await lumaClient.getAllEvents();
+        const allEvents = await lumaClient!.getAllEvents();
 
         // Group events by visibility (since status isn't available in list response)
         const eventsByVisibility = allEvents.reduce((acc, eventEntry) => {
@@ -908,7 +1201,7 @@ ${sortedEvents || "No events found"}`,
 
       case "get_event": {
         const { api_id } = args as { api_id: string };
-        const event = await lumaClient.getEvent(api_id);
+        const event = await lumaClient!.getEvent(api_id);
         
         // Helper function to extract location info
         const getLocationText = (event: EventDetails) => {
@@ -991,7 +1284,7 @@ ${getLocationText(event)}
           proxy_key?: string;
         };
 
-        const guest = await lumaClient.getEventGuest(api_id, {
+        const guest = await lumaClient!.getEventGuest(api_id, {
           guestApiId: guest_api_id,
           email,
           proxyKey: proxy_key,
@@ -1046,7 +1339,7 @@ ${getLocationText(event)}
           pagination_limit?: number;
         };
 
-        const response = await lumaClient.getEventGuests(api_id, {
+        const response = await lumaClient!.getEventGuests(api_id, {
           paginationCursor: pagination_cursor,
           paginationLimit: pagination_limit,
         });
@@ -1078,7 +1371,7 @@ ${guestsList || "No guests found"}`,
 
       case "get_all_event_guests": {
         const { api_id } = args as { api_id: string };
-        const allGuests = await lumaClient.getAllEventGuests(api_id);
+        const allGuests = await lumaClient!.getAllEventGuests(api_id);
 
         // Group guests by approval status
         const guestsByStatus = allGuests.reduce((acc, guest) => {
@@ -1126,7 +1419,7 @@ ${guestsList || "No guests found"}`,
         };
 
         // Get event details
-        const event = await lumaClient.getEvent(api_id);
+        const event = await lumaClient!.getEvent(api_id);
         
         // Helper function to determine event type
         const getEventType = (event: EventDetails) => {
@@ -1165,7 +1458,7 @@ ${guestsList || "No guests found"}`,
         
         let guestSummary = "";
         if (include_guest_details) {
-          const allGuests = await lumaClient.getAllEventGuests(api_id);
+          const allGuests = await lumaClient!.getAllEventGuests(api_id);
           
           // Group guests by approval status
           const guestsByStatus = allGuests.reduce((acc, guest) => {
@@ -1224,7 +1517,7 @@ ${statusBreakdown}`;
         };
 
         // First, get the current event details
-        const currentEvent = await lumaClient.getEvent(api_id);
+        const currentEvent = await lumaClient!.getEvent(api_id);
         
         // Format the changes for display
         const changes: string[] = [];
@@ -1300,7 +1593,7 @@ ${changes.join('\n')}
         } else {
           // Actually update the event
           try {
-            const updatedEvent = await lumaClient.updateEvent(api_id, updates);
+            const updatedEvent = await lumaClient!.updateEvent(api_id, updates);
             
             return {
               content: [
@@ -1349,12 +1642,14 @@ ${changes.join('\n')}
 
 // Start the server
 async function main() {
-  // Load existing .env file if present
-  if (existsSync(ENV_FILE_PATH)) {
-    const env = readEnvFile();
-    if (env.LUMA_API_KEY) {
-      process.env.LUMA_API_KEY = env.LUMA_API_KEY;
-      console.error("Loaded API key from .env file");
+  // Load calendars from config
+  loadCalendarsFromConfig();
+  
+  const config = readConfigFile();
+  if (config.calendars.length > 0) {
+    console.error(`Loaded ${config.calendars.length} calendar(s) from config`);
+    if (config.defaultCalendar) {
+      console.error(`Default calendar: ${config.defaultCalendar}`);
     }
   }
   
