@@ -83,9 +83,7 @@ Create a `luma-config.json` file in the project root:
 }
 ```
 
-### Migration from Single API Key
 
-If you have an existing `.env` file with a single API key, it will be automatically migrated to the new multi-calendar format on first run.
 
 ### Getting Your API Key
 

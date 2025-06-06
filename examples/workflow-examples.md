@@ -297,4 +297,3 @@ To get started, you'll need to add at least one Lu.ma calendar with its API key.
 
 7. **Two-step updates**: Always show proposed changes before applying them, giving users a chance to review.
 
-8. **Migration Support**: If you encounter a single API key in .env format, the system will automatically migrate it to the new multi-calendar format.
