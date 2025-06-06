@@ -8,7 +8,7 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { writeFileSync, readFileSync, existsSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { stringify } from "csv-stringify/sync";
@@ -825,7 +825,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "export_guest_list",
-        description: "💾 Export Guest List - Export guest data to CSV for one or more events",
+        description: "💾 Export Guest List - Export guest data to CSV file (saves to exports/ directory)",
         inputSchema: {
           type: "object",
           properties: {
@@ -1772,12 +1772,22 @@ ${changes.join('\n')}
         const defaultFilename = `luma_guests_${currentCalendar}_${new Date().toISOString().split('T')[0]}.csv`;
         const finalFilename = filename || defaultFilename;
         
-        // Return the CSV content and metadata
+        // Create exports directory if it doesn't exist
+        const exportsDir = join(PROJECT_ROOT, 'exports');
+        if (!existsSync(exportsDir)) {
+          mkdirSync(exportsDir, { recursive: true });
+        }
+        
+        // Write CSV to file
+        const filePath = join(exportsDir, finalFilename);
+        writeFileSync(filePath, csv);
+        
+        // Return success message with file location
         return {
           content: [
             {
               type: "text",
-              text: `📄 **Guest List Export Complete**\n\n**Export Summary:**\n- Calendar: ${currentCalendar}\n- Events exported: ${eventsToExport.length}\n- Total guests: ${totalGuests}\n- Registration questions found: ${allQuestions.length}\n- Filename: ${finalFilename}\n\n**CSV Content:**\n\`\`\`csv\n${csv.substring(0, 500)}${csv.length > 500 ? '\n... (truncated for display)' : ''}\n\`\`\`\n\nThe full CSV data is ready to be saved. You can save it as \"${finalFilename}\".\n\n<csv_data>\n${csv}\n</csv_data>`,
+              text: `✅ **Guest List Export Complete**\n\n**Export Summary:**\n- Calendar: ${currentCalendar}\n- Events exported: ${eventsToExport.length}\n- Total guests: ${totalGuests}\n- Registration questions found: ${allQuestions.length}\n\n**File saved to:**\n\`${filePath}\`\n\n**Columns included:**\n- Fixed: Event, Calendar, Last Name, First Name, Name, Email, Registration Date, Approval Status, Checked In, Check-in Time, QR Code\n- Dynamic: ${allQuestions.length > 0 ? allQuestions.join(', ') : '(none)'}`,
             },
           ],
         };

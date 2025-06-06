@@ -50,3 +50,6 @@ coverage/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Export files
+exports/
