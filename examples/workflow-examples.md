@@ -241,6 +241,51 @@ All Events Summary:
 You have 15 total events, with 8 public events and a good mix of in-person and online formats.
 ```
 
+### 6. Exporting Guest Lists
+
+```
+Human: Please export the guest list for the DICE Ecosystems event
+
+AI: I'll export the guest list for the DICE Ecosystems event as a CSV file.
+
+[Calls export_guest_list with event_ids=["evt-FLKa0EdEixTcnDb"]]
+
+📄 **Guest List Export Complete**
+
+**Export Summary:**
+- Calendar: trustsquare
+- Events exported: 1
+- Total guests: 127
+- Registration questions found: 5
+- Filename: luma_guests_trustsquare_2025-06-06.csv
+
+**CSV Content:**
+```csv
+Event,Calendar,Last Name,First Name,Name,Email,Registration Date,Approval Status,Checked In,Check-in Time,QR Code,What company do you work for?,What is your job title?,Which days do you join?
+"DICE Ecosystems","trustsquare","Smith","John","John Smith","john.smith@example.com","2025-02-15T10:30:00Z","approved","No","","https://lu.ma/check-in/evt-FLKa0EdEixTcnDb?pk=g-abc123","Acme Corp","CTO","Both days"
+... (truncated for display)
+```
+
+The full CSV data is ready to be saved. You can save it as "luma_guests_trustsquare_2025-06-06.csv".
+
+Human: Export all upcoming events
+
+AI: I'll export the guest lists for all upcoming events.
+
+[Calls export_guest_list with include_all_events=true, include_future_only=true]
+
+📄 **Guest List Export Complete**
+
+**Export Summary:**
+- Calendar: trustsquare
+- Events exported: 15
+- Total guests: 892
+- Registration questions found: 12
+- Filename: luma_guests_trustsquare_2025-06-06.csv
+
+The export includes guests from all 15 upcoming events with various registration questions collected across different events. The CSV is ready to be saved.
+```
+
 ## Error Handling
 
 ### Invalid API Key

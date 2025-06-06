@@ -12,7 +12,7 @@ This MCP server enables AI agents to:
 - **Update Events**: Modify event details with a built-in approval workflow
 - **Manage Guest Data**: Access guest lists, individual guest details, and registration information
 - **Handle Pagination**: Automatically manage large guest lists with built-in pagination support
-- **Comprehensive Summaries**: Generate complete event summaries with guest analytics
+- **Export Guest Lists**: Export comprehensive guest data to CSV format for single or multiple events
 
 ## Prerequisites
 
@@ -232,7 +232,35 @@ update_event(api_id="evt-12345", name="Updated Tech Meetup", start_at="2024-12-2
 update_event(api_id="evt-12345", name="Updated Tech Meetup", start_at="2024-12-20T18:00:00Z", require_approval=false)
 ```
 
-**Note:** This tool implements a two-step approval process by default. The first call shows what changes will be made without applying them. To actually update the event, call the tool again with `require_approval: false`.
+#### 13. `export_guest_list`
+Export guest data to CSV format for one or more events.
+
+**Parameters:**
+- `event_ids` (array of strings, optional): Specific event IDs to export (if not provided, exports all events)
+- `include_all_events` (boolean, optional): Export guests from all events in the calendar
+- `include_future_only` (boolean, optional): Only include future events when exporting all
+- `filename` (string, optional): Custom filename for the CSV
+
+**Export includes:**
+- Event name and calendar
+- Guest personal information (name, email)
+- Registration and check-in status
+- All custom registration questions and answers
+- QR codes for check-in
+
+**Example usage:**
+```
+# Export specific event
+export_guest_list(event_ids=["evt-abc123"])
+
+# Export all future events
+export_guest_list(include_all_events=true, include_future_only=true)
+
+# Export with custom filename
+export_guest_list(event_ids=["evt-abc123", "evt-def456"], filename="trust_square_guests.csv")
+```
+
+**Note:** The tool returns a preview of the CSV content. The full CSV data is included in the response metadata for saving.
 
 ### Integration with MCP Clients
 

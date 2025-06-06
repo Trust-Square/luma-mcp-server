@@ -11,6 +11,7 @@ import {
 import { writeFileSync, readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { stringify } from "csv-stringify/sync";
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -403,6 +404,34 @@ let currentCalendar: string | null = null;
 
 // Note: Current date is Friday, June 06, 2025 as per system info
 
+// Helper functions for CSV export
+function collectAllQuestions(allGuestsData: Array<{ eventName: string; guests: Guest[] }>): string[] {
+  const questionsSet = new Set<string>();
+  
+  for (const { guests } of allGuestsData) {
+    for (const guest of guests) {
+      const answers = guest.registration_answers || [];
+      for (const answer of answers) {
+        if (answer.label) {
+          questionsSet.add(answer.label);
+        }
+      }
+    }
+  }
+  
+  return Array.from(questionsSet).sort();
+}
+
+function getRegistrationAnswersMap(answers?: Array<{ label: string; answer: string }>): Record<string, string> {
+  const answerMap: Record<string, string> = {};
+  for (const answer of answers || []) {
+    if (answer.label) {
+      answerMap[answer.label] = answer.answer || '';
+    }
+  }
+  return answerMap;
+}
+
 // Configuration functions for multi-calendar support
 function readConfigFile(): ConfigFile {
   if (existsSync(CONFIG_FILE_PATH)) {
@@ -792,6 +821,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ["api_id"],
+        },
+      },
+      {
+        name: "export_guest_list",
+        description: "💾 Export Guest List - Export guest data to CSV for one or more events",
+        inputSchema: {
+          type: "object",
+          properties: {
+            event_ids: {
+              type: "array",
+              items: { type: "string" },
+              description: "Event IDs to export guests from (leave empty to export all events)",
+            },
+            include_all_events: {
+              type: "boolean",
+              description: "Export guests from all events in the current calendar",
+              default: false,
+            },
+            include_future_only: {
+              type: "boolean",
+              description: "Only include future events when exporting all",
+              default: false,
+            },
+            filename: {
+              type: "string",
+              description: "Custom filename for the CSV (defaults to auto-generated name)",
+            },
+          },
+          required: [],
         },
       },
     ],
@@ -1564,6 +1622,165 @@ ${changes.join('\n')}
             );
           }
         }
+      }
+
+      case "export_guest_list": {
+        const { 
+          event_ids, 
+          include_all_events = false, 
+          include_future_only = false,
+          filename 
+        } = args as {
+          event_ids?: string[];
+          include_all_events?: boolean;
+          include_future_only?: boolean;
+          filename?: string;
+        };
+
+        let eventsToExport: EventSummary[] = [];
+        
+        // Determine which events to export
+        if (include_all_events || (!event_ids || event_ids.length === 0)) {
+          // Get all events
+          const allEvents = await lumaClient!.getAllEvents();
+          
+          if (include_future_only) {
+            // Filter to only future events
+            const now = new Date();
+            eventsToExport = allEvents.filter(eventEntry => 
+              new Date(eventEntry.event.start_at) > now
+            );
+          } else {
+            eventsToExport = allEvents;
+          }
+        } else {
+          // Get specific events
+          for (const eventId of event_ids) {
+            try {
+              const event = await lumaClient!.getEvent(eventId);
+              // Convert to EventSummary format for consistency
+              eventsToExport.push({
+                api_id: event.api_id,
+                event: {
+                  api_id: event.api_id,
+                  name: event.name,
+                  start_at: event.start_at,
+                  end_at: event.end_at,
+                  timezone: event.timezone,
+                  url: event.url,
+                  cover_url: event.cover_url,
+                  visibility: event.visibility,
+                  meeting_url: event.meeting_url,
+                  zoom_meeting_url: event.zoom_meeting_url,
+                  geo_address_json: event.geo_address_json,
+                  duration_interval: event.duration_interval
+                }
+              });
+            } catch (error) {
+              console.error(`Failed to get event ${eventId}:`, error);
+            }
+          }
+        }
+        
+        if (eventsToExport.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No events found to export.",
+              },
+            ],
+          };
+        }
+        
+        // Collect all guest data
+        const allGuestsData: Array<{ eventName: string; guests: Guest[] }> = [];
+        let totalGuests = 0;
+        
+        for (const eventEntry of eventsToExport) {
+          const event = eventEntry.event;
+          try {
+            const guests = await lumaClient!.getAllEventGuests(event.api_id);
+            allGuestsData.push({
+              eventName: event.name,
+              guests
+            });
+            totalGuests += guests.length;
+          } catch (error) {
+            console.error(`Failed to get guests for event ${event.name}:`, error);
+          }
+        }
+        
+        // Collect all unique registration questions
+        const allQuestions = collectAllQuestions(allGuestsData);
+        
+        // Build the CSV data
+        const allGuests: any[] = [];
+        
+        // Process each event's guests
+        for (const { eventName, guests } of allGuestsData) {
+          for (const guest of guests) {
+            const registrationAnswers = getRegistrationAnswersMap(guest.registration_answers);
+            
+            // Build base guest data
+            const guestRow: any = {
+              'Event': eventName,
+              'Calendar': currentCalendar,
+              'Last Name': guest.user_last_name || '',
+              'First Name': guest.user_first_name || '',
+              'Name': guest.name || '',
+              'Email': guest.email || guest.user_email || '',
+              'Registration Date': guest.registered_at || '',
+              'Approval Status': guest.approval_status || '',
+              'Checked In': guest.checked_in_at ? 'Yes' : 'No',
+              'Check-in Time': guest.checked_in_at || '',
+              'QR Code': guest.check_in_qr_code || ''
+            };
+            
+            // Add all registration questions dynamically
+            for (const question of allQuestions) {
+              guestRow[question] = registrationAnswers[question] || '';
+            }
+            
+            allGuests.push(guestRow);
+          }
+        }
+        
+        // Define column order: fixed columns first, then dynamic questions
+        const fixedColumns = [
+          'Event',
+          'Calendar',
+          'Last Name',
+          'First Name',
+          'Name',
+          'Email',
+          'Registration Date',
+          'Approval Status',
+          'Checked In',
+          'Check-in Time',
+          'QR Code'
+        ];
+        const columns = [...fixedColumns, ...allQuestions];
+        
+        // Generate CSV
+        const csv = stringify(allGuests, {
+          header: true,
+          columns: columns
+        });
+        
+        // Generate filename
+        const defaultFilename = `luma_guests_${currentCalendar}_${new Date().toISOString().split('T')[0]}.csv`;
+        const finalFilename = filename || defaultFilename;
+        
+        // Return the CSV content and metadata
+        return {
+          content: [
+            {
+              type: "text",
+              text: `📄 **Guest List Export Complete**\n\n**Export Summary:**\n- Calendar: ${currentCalendar}\n- Events exported: ${eventsToExport.length}\n- Total guests: ${totalGuests}\n- Registration questions found: ${allQuestions.length}\n- Filename: ${finalFilename}\n\n**CSV Content:**\n\`\`\`csv\n${csv.substring(0, 500)}${csv.length > 500 ? '\n... (truncated for display)' : ''}\n\`\`\`\n\nThe full CSV data is ready to be saved. You can save it as \"${finalFilename}\".\n\n<csv_data>\n${csv}\n</csv_data>`,
+            },
+          ],
+        };
       }
 
       default:
