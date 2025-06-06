@@ -402,6 +402,8 @@ const server = new Server(
 const lumaClients: Map<string, LumaMCPServer> = new Map();
 let currentCalendar: string | null = null;
 
+// Note: Current date is Friday, June 06, 2025 as per system info
+
 // Helper functions for .env file management
 function readEnvFile(): Record<string, string> {
   const env: Record<string, string> = {};
@@ -632,7 +634,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_events",
-        description: "📅 Browse Events - List your Lu.ma events with optional date filtering and pagination",
+        description: "📅 Browse Events - List your Lu.ma events (defaults to future events only)",
         inputSchema: {
           type: "object",
           properties: {
@@ -648,11 +650,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             after: {
               type: "string",
-              description: "Show events starting after this date (e.g., '2025-06-01T00:00:00Z')",
+              description: "Show events starting after this date (ISO 8601 format) - defaults to current time if not specified",
             },
             before: {
               type: "string",
-              description: "Show events starting before this date (e.g., '2025-12-31T23:59:59Z')",
+              description: "Show events starting before this date (ISO 8601 format)",
             },
             series_mode: {
               type: "string",
@@ -1075,11 +1077,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           series_mode?: "instances" | "series";
           include_cancelled?: boolean;
         };
+        
+        // If no 'after' date is provided, default to current time to show only future events
+        const effectiveAfter = after || new Date().toISOString();
 
         const response = await lumaClient!.listEvents({
           paginationCursor: pagination_cursor,
           paginationLimit: pagination_limit,
-          after,
+          after: effectiveAfter,
           before,
           seriesMode: series_mode,
           includeCancelled: include_cancelled,
@@ -1118,9 +1123,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 - Next cursor: ${response.next_cursor || "None"}
 
 **Date Range:**
-${after ? `- After: ${new Date(after).toLocaleString()}` : ""}
+${effectiveAfter ? `- After: ${new Date(effectiveAfter).toLocaleString()}${!after ? ' (current time)' : ''}` : ""}
 ${before ? `- Before: ${new Date(before).toLocaleString()}` : ""}
-${after || before ? "" : "- All dates"}
+${!effectiveAfter && !before ? "- All dates" : ""}
 
 **Events:**
 ${eventsList || "No events found"}`,
