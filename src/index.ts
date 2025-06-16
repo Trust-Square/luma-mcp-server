@@ -40,6 +40,7 @@ interface EventDetails {
   api_id: string;
   name: string;
   description?: string;
+  description_md?: string;
   start_at: string;
   end_at?: string;
   duration_interval?: string;
@@ -367,21 +368,43 @@ class LumaMCPServer {
 
   async updateEvent(eventApiId: string, updates: Partial<EventDetails>): Promise<EventDetails> {
     const body = {
-      api_id: eventApiId,
+      event_api_id: eventApiId,
       ...updates
     };
+    
+    // Debug: log the body being sent
+    console.error('Update request body:', JSON.stringify(body, null, 2));
+    
+    // Also write to a debug file
+    try {
+      const debugPath = join(PROJECT_ROOT, 'debug-update.log');
+      writeFileSync(debugPath, `Update request at ${new Date().toISOString()}:\n${JSON.stringify(body, null, 2)}\n\n`, { flag: 'a' });
+    } catch (e) {
+      // Ignore file write errors
+    }
 
     const response = await this.makeRequest(`/event/update`, "POST", body, true);
     
-    // The API returns the event data nested under an "event" key
-    if (!response.event) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        "Invalid API response: missing event data"
-      );
+    // Debug: log the response
+    try {
+      const debugPath = join(PROJECT_ROOT, 'debug-response.log');
+      writeFileSync(debugPath, `Update response at ${new Date().toISOString()}:\n${JSON.stringify(response, null, 2)}\n\n`, { flag: 'a' });
+    } catch (e) {
+      // Ignore file write errors
     }
     
-    return response.event;
+    // The update API may return different response format than get API
+    // Try to extract event data, but handle various response formats
+    if (response.event) {
+      return response.event;
+    } else if (response.api_id || response.name) {
+      // Response is the event data directly
+      return response;
+    } else {
+      // API updated successfully but returned different format
+      // Fetch the updated event data using get API
+      return await this.getEvent(eventApiId);
+    }
   }
 }
 
@@ -756,9 +779,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "New event name",
             },
-            description: {
+            description_md: {
               type: "string",
-              description: "New event description",
+              description: "New event description (markdown format)",
             },
             start_at: {
               type: "string",
@@ -1251,7 +1274,7 @@ ${sortedEvents || "No events found"}`,
 **Basic Information:**
 - Event ID: ${event.api_id}
 - Name: ${event.name}
-- Description: ${event.description ? event.description.substring(0, 500) + (event.description.length > 500 ? '...' : '') : "No description provided"}
+- Description: ${event.description_md || event.description || "No description provided"}
 - Type: ${getEventType(event)}
 - Timezone: ${event.timezone}
 - Visibility: ${event.visibility}
@@ -1503,7 +1526,7 @@ ${statusBreakdown}`;
           api_id: string;
           require_approval?: boolean;
           name?: string;
-          description?: string;
+          description_md?: string;
           start_at?: string;
           end_at?: string;
           timezone?: string;
@@ -1526,9 +1549,9 @@ ${statusBreakdown}`;
         if (updates.name && updates.name !== currentEvent.name) {
           changes.push(`- Name: "${currentEvent.name}" → "${updates.name}"`);
         }
-        if (updates.description !== undefined && updates.description !== currentEvent.description) {
-          const currentDesc = currentEvent.description ? `"${currentEvent.description.substring(0, 50)}${currentEvent.description.length > 50 ? '...' : ''}"` : "(empty)";
-          const newDesc = updates.description ? `"${updates.description.substring(0, 50)}${updates.description.length > 50 ? '...' : ''}"` : "(empty)";
+        if (updates.description_md !== undefined && updates.description_md !== currentEvent.description_md) {
+          const currentDesc = currentEvent.description_md ? `"${currentEvent.description_md.substring(0, 50)}${currentEvent.description_md.length > 50 ? '...' : ''}"` : "(empty)";
+          const newDesc = updates.description_md ? `"${updates.description_md.substring(0, 50)}${updates.description_md.length > 50 ? '...' : ''}"` : "(empty)";
           changes.push(`- Description: ${currentDesc} → ${newDesc}`);
         }
         if (updates.start_at && updates.start_at !== currentEvent.start_at) {

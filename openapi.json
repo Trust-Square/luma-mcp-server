@@ -1,0 +1,1303 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Lu.ma MCP Server API",
+    "description": "REST API wrapper for Lu.ma MCP Server providing calendar, event, and guest management functionality",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://api.example.com/v1",
+      "description": "Production server (to be replaced with Tadata URL)"
+    }
+  ],
+  "security": [
+    {
+      "lumaApiKey": []
+    }
+  ],
+  "paths": {
+    "/calendars/configure": {
+      "post": {
+        "tags": ["Calendar Management"],
+        "summary": "Configure Calendar",
+        "description": "Add or update a Lu.ma calendar with API key",
+        "operationId": "configure_calendar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureCalendarRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calendar configured successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigureCalendarResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/calendars": {
+      "get": {
+        "tags": ["Calendar Management"],
+        "summary": "List Calendars",
+        "description": "Show all configured calendars",
+        "operationId": "list_calendars",
+        "responses": {
+          "200": {
+            "description": "List of configured calendars",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCalendarsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calendars/switch": {
+      "put": {
+        "tags": ["Calendar Management"],
+        "summary": "Switch Calendar",
+        "description": "Change the active calendar",
+        "operationId": "switch_calendar",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchCalendarRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calendar switched successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SwitchCalendarResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/calendars/{name}": {
+      "delete": {
+        "tags": ["Calendar Management"],
+        "summary": "Remove Calendar",
+        "description": "Remove a calendar configuration",
+        "operationId": "remove_calendar",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Name of the calendar to remove",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "required": false,
+            "description": "Confirm removal",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Calendar removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveCalendarResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "tags": ["Event Operations"],
+        "summary": "Browse Events",
+        "description": "List your Lu.ma events (defaults to future events only)",
+        "operationId": "list_events",
+        "parameters": [
+          {
+            "name": "pagination_cursor",
+            "in": "query",
+            "description": "Continue from a previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagination_limit",
+            "in": "query",
+            "description": "Number of events to show (1-100, default 50)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Show events starting after this date (ISO 8601 format)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Show events starting before this date (ISO 8601 format)",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "series_mode",
+            "in": "query",
+            "description": "How to handle recurring events",
+            "schema": {
+              "type": "string",
+              "enum": ["instances", "series"]
+            }
+          },
+          {
+            "name": "include_cancelled",
+            "in": "query",
+            "description": "Include cancelled events in results",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/all": {
+      "get": {
+        "tags": ["Event Operations"],
+        "summary": "All Events Overview",
+        "description": "Get complete analytics and overview of all your events",
+        "operationId": "get_all_events",
+        "responses": {
+          "200": {
+            "description": "Complete list of all events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllEventsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/{eventId}": {
+      "get": {
+        "tags": ["Event Operations"],
+        "summary": "Event Details",
+        "description": "Get comprehensive information about a specific event",
+        "operationId": "get_event",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID (e.g., 'evt-12345')",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Event Operations"],
+        "summary": "Update Event",
+        "description": "Update event details (requires approval before making changes)",
+        "operationId": "update_event",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID to update",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Event updated successfully or approval request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateEventResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/guests/{guestId}": {
+      "get": {
+        "tags": ["Guest Management"],
+        "summary": "Individual Guest",
+        "description": "Get detailed information about a specific guest",
+        "operationId": "get_event_guest",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID where the guest is registered",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guestId",
+            "in": "path",
+            "required": true,
+            "description": "The guest identifier (can be guest_api_id, email, or proxy_key)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "identifier_type",
+            "in": "query",
+            "description": "Type of identifier provided",
+            "schema": {
+              "type": "string",
+              "enum": ["guest_api_id", "email", "proxy_key"],
+              "default": "guest_api_id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Guest details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Guest"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/guests": {
+      "get": {
+        "tags": ["Guest Management"],
+        "summary": "Guest List",
+        "description": "Get a paginated list of all guests for an event",
+        "operationId": "get_event_guests",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID to get guests for",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagination_cursor",
+            "in": "query",
+            "description": "Continue from a previous page",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagination_limit",
+            "in": "query",
+            "description": "Number of guests to show (1-100, default 50)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of guests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestsListResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/guests/all": {
+      "get": {
+        "tags": ["Guest Management"],
+        "summary": "Complete Guest Analytics",
+        "description": "Get all guests for an event with status breakdown and analytics",
+        "operationId": "get_all_event_guests",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID to analyze all guests for",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete guest analytics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllGuestsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/{eventId}/summary": {
+      "get": {
+        "tags": ["Guest Management"],
+        "summary": "Event Report",
+        "description": "Get a comprehensive summary combining event details with guest analytics",
+        "operationId": "get_event_summary",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "The event ID to create a summary report for",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_guest_details",
+            "in": "query",
+            "description": "Include detailed guest analytics in the summary",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event summary report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventSummaryReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/events/export-guests": {
+      "post": {
+        "tags": ["Guest Management"],
+        "summary": "Export Guest List",
+        "description": "Export guest data to CSV file",
+        "operationId": "export_guest_list",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportGuestListRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Export completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportGuestListResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "description": "CSV file content"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "lumaApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Luma-API-Key",
+        "description": "Lu.ma API key for authentication"
+      }
+    },
+    "schemas": {
+      "ConfigureCalendarRequest": {
+        "type": "object",
+        "required": ["name", "api_key"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for this calendar (e.g., 'personal', 'work', 'community')"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "API key for this calendar from the Lu.ma dashboard"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description for this calendar"
+          },
+          "set_as_default": {
+            "type": "boolean",
+            "description": "Set this calendar as the default",
+            "default": false
+          },
+          "validate": {
+            "type": "boolean",
+            "description": "Test the API key by making a validation request",
+            "default": true
+          }
+        }
+      },
+      "ConfigureCalendarResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "calendar": {
+            "$ref": "#/components/schemas/CalendarConfig"
+          },
+          "validation_result": {
+            "type": "string",
+            "description": "Result of API key validation if performed"
+          }
+        }
+      },
+      "CalendarConfig": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "is_active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ListCalendarsResponse": {
+        "type": "object",
+        "properties": {
+          "calendars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalendarConfig"
+            }
+          },
+          "current_calendar": {
+            "type": "string",
+            "description": "Name of the currently active calendar"
+          },
+          "default_calendar": {
+            "type": "string",
+            "description": "Name of the default calendar"
+          }
+        }
+      },
+      "SwitchCalendarRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the calendar to switch to"
+          }
+        }
+      },
+      "SwitchCalendarResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "active_calendar": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoveCalendarResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "remaining_calendars": {
+            "type": "integer"
+          }
+        }
+      },
+      "EventsListResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "AllEventsResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventSummary"
+            }
+          },
+          "by_visibility": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "by_type": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "EventSummary": {
+        "type": "object",
+        "properties": {
+          "api_id": {
+            "type": "string"
+          },
+          "event": {
+            "type": "object",
+            "properties": {
+              "api_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "start_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "end_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "cover_url": {
+                "type": "string"
+              },
+              "visibility": {
+                "type": "string",
+                "enum": ["public", "private", "unlisted"]
+              },
+              "meeting_url": {
+                "type": "string"
+              },
+              "zoom_meeting_url": {
+                "type": "string"
+              },
+              "geo_address_json": {
+                "$ref": "#/components/schemas/GeoAddress"
+              },
+              "duration_interval": {
+                "type": "string"
+              }
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "api_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "EventDetails": {
+        "type": "object",
+        "properties": {
+          "api_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration_interval": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": ["in_person", "online", "hybrid"]
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "geo_address_json": {
+            "$ref": "#/components/schemas/GeoAddress"
+          },
+          "geo_latitude": {
+            "type": "string"
+          },
+          "geo_longitude": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["public", "private", "unlisted"]
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "zoom_meeting_url": {
+            "type": "string"
+          },
+          "user_api_id": {
+            "type": "string"
+          },
+          "calendar_api_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GeoAddress": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "full_address": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateEventRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "start_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": ["in_person", "online", "hybrid"]
+          },
+          "geo_address_json": {
+            "$ref": "#/components/schemas/GeoAddress"
+          },
+          "geo_latitude": {
+            "type": "string"
+          },
+          "geo_longitude": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": ["public", "private", "unlisted"]
+          },
+          "meeting_url": {
+            "type": "string"
+          },
+          "zoom_meeting_url": {
+            "type": "string"
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "UpdateEventResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "event": {
+            "$ref": "#/components/schemas/EventDetails"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approval_required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Guest": {
+        "type": "object",
+        "properties": {
+          "api_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "approval_status": {
+            "type": "string",
+            "enum": ["approved", "pending", "declined"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "registered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "invited_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "checked_in_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_api_id": {
+            "type": "string"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "user_email": {
+            "type": "string"
+          },
+          "user_first_name": {
+            "type": "string"
+          },
+          "user_last_name": {
+            "type": "string"
+          },
+          "phone_number": {
+            "type": "string"
+          },
+          "check_in_qr_code": {
+            "type": "string"
+          },
+          "registration_answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationAnswer"
+            }
+          },
+          "event_tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventTicket"
+            }
+          },
+          "event_ticket": {
+            "$ref": "#/components/schemas/EventTicket"
+          }
+        }
+      },
+      "RegistrationAnswer": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "question_id": {
+            "type": "string"
+          },
+          "question_type": {
+            "type": "string"
+          }
+        }
+      },
+      "EventTicket": {
+        "type": "object",
+        "properties": {
+          "api_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "checked_in_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GuestEntry": {
+        "type": "object",
+        "properties": {
+          "api_id": {
+            "type": "string"
+          },
+          "guest": {
+            "$ref": "#/components/schemas/Guest"
+          }
+        }
+      },
+      "GuestsListResponse": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuestEntry"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        }
+      },
+      "AllGuestsResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "guests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Guest"
+            }
+          },
+          "by_status": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "EventSummaryReport": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/EventDetails"
+          },
+          "guest_summary": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "by_status": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ExportGuestListRequest": {
+        "type": "object",
+        "properties": {
+          "event_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Event IDs to export guests from"
+          },
+          "include_all_events": {
+            "type": "boolean",
+            "description": "Export guests from all events in the current calendar",
+            "default": false
+          },
+          "include_future_only": {
+            "type": "boolean",
+            "description": "Only include future events when exporting all",
+            "default": false
+          },
+          "filename": {
+            "type": "string",
+            "description": "Custom filename for the CSV"
+          }
+        }
+      },
+      "ExportGuestListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "filepath": {
+            "type": "string"
+          },
+          "download_url": {
+            "type": "string",
+            "description": "URL to download the exported file"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "events_exported": {
+                "type": "integer"
+              },
+              "total_guests": {
+                "type": "integer"
+              },
+              "columns_included": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized - Invalid or missing API key",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Calendar Management",
+      "description": "Operations for managing Lu.ma calendar configurations"
+    },
+    {
+      "name": "Event Operations",
+      "description": "Operations for managing Lu.ma events"
+    },
+    {
+      "name": "Guest Management",
+      "description": "Operations for managing event guests and registrations"
+    }
+  ]
+}

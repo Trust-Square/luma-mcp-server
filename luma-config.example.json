@@ -11,5 +11,6 @@
       "description": "Work events and meetings"
     }
   ],
-  "defaultCalendar": "personal"
+  "defaultCalendar": "personal",
+  "TADATA_API_KEY": "YOUR_TADATA_API_KEY"
 }
